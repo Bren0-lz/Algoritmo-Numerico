@@ -1,46 +1,78 @@
-# Algoritmos Numéricos
+# Algoritmos Numéricos (Clean Architecture)
 
-Este repositório contém implementações em **Python** de diversos métodos numéricos, desenvolvidos como parte da disciplina de **Algoritmos Numéricos** no curso de **Engenharia de Computação** do **Instituto Federal Fluminense: Campus Bom Jesus do Itabapoana**.
+![Python](https://img.shields.io/badge/Python-3.12%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-conclu%C3%ADdo-success)
 
-O objetivo é aplicar na prática os conceitos teóricos de cálculo numérico para resolução de problemas matemáticos computacionais.
+Este repositório contém implementações robustas em **Python** de métodos numéricos fundamentais, desenvolvidos originalmente para a disciplina de **Algoritmos Numéricos** (Engenharia de Computação - IFF Bom Jesus) e posteriormente refatorados para padrões de engenharia de software modernos.
 
-## Estrutura do Repositório
+O objetivo vai além da matemática: demonstra a aplicação de **Clean Code**, **SOLID** e **Design Patterns** em algoritmos científicos.
 
-O projeto está organizado em módulos independentes, focados em diferentes tópicos da matéria:
+## Engenharia e Arquitetura
 
-### 1. `AjusteDeCurvas.py`
-Implementação de métodos para ajuste de curvas e regressão.
-* **Tópicos:** Método dos Mínimos Quadrados (MMQ), Regressão Linear e Polinomial.
+Diferente de scripts acadêmicos comuns, este projeto foi estruturado com foco em manutenibilidade e extensibilidade:
 
-### 2. `Conversor.py`
-Ferramentas para conversão de bases numéricas e representação de dados.
-* **Tópicos:** Conversão Binário/Decimal/Hexadecimal.
+* **Strategy Pattern:** Utilizado nos módulos de *Integração*, *Interpolação* e *Sistemas Lineares*. Permite a troca dinâmica de algoritmos (ex: mudar de Gauss para LU) sem alterar o código cliente, respeitando o princípio **Open/Closed (OCP)**.
+* **Data Transfer Objects (DTOs):** Encapsulamento de resultados complexos (matrizes, vetores, logs de erro) para desacoplar o "motor matemático" da interface de usuário.
+* **Segurança e Validação:** Uso de **SymPy** para parsing seguro de expressões matemáticas (evitando `eval`) e tratamento robusto de exceções (ex: pivôs nulos, matrizes singulares).
+* **UX/UI no Console:** Interfaces intuitivas com "Wizards" de entrada, formatação visual de matrizes e modos de demonstração.
 
-### 3. `Interpolacao.py`
-Métodos para encontrar valores desconhecidos dentro de um intervalo de dados discretos.
-* **Tópicos prováveis:** Interpolação de Lagrange, Forma de Newton e Splines.
+## Módulos do Projeto
 
-### 4. `SistemasLineares.py`
-Algoritmos para resolução de sistemas de equações lineares.
-* **Tópicos prováveis:** Eliminação de Gauss, Decomposição LU, Jacobi e Gauss-Seidel.
+### 1. `SistemasLineares.py` 
+Solver de sistemas $Ax=b$ com arquitetura orientada a objetos.
+* **Métodos:** Eliminação de Gauss (com Pivoteamento Parcial), Decomposição LU e Decomposição LUP (com fallback para SciPy).
+* **Destaque:** Entrada de dados intuitiva (linha única) e visualização passo-a-passo das matrizes transformadas.
+
+### 2. `Interpolacao.py`
+Ferramenta para encontrar polinômios que se ajustam a um conjunto de dados.
+* **Métodos:** Lagrange, Neville (Método Prático), Diferenças Divididas de Newton e Diferenças Finitas (Gregory-Newton).
+* **Destaque:** Cálculo automático do **Erro de Truncamento** utilizando derivadas simbólicas.
+
+### 3. `CalculoIntegrais.py`
+Integração numérica para funções contínuas e dados tabulados.
+* **Métodos:** Regra do Trapézio, Simpson 1/3 e Simpson 3/8.
+* **Destaque:** Análise comparativa automática entre o valor numérico e a solução analítica exata.
+
+### 4. `CalculoEquacoesDiferenciaisOrdinarias.py`
+Resolução de PVI (Problemas de Valor Inicial) para EDOs.
+* **Métodos:** Euler, Euler Aperfeiçoado e Runge-Kutta de 4ª Ordem (RK4).
+* **Destaque:** Geração automática de gráficos comparativos com `matplotlib`.
+
+### 5. `AjusteDeCurvas.py`
+Métodos de regressão para análise de tendências em dados experimentais.
+* **Métodos:** Método dos Mínimos Quadrados (MMQ) e Interpolação Linear Visual.
+
+### 6. `ConversorDeBases.py`
+Utilitário para conversão entre bases numéricas arbitrárias (Binário, Octal, Hexadecimal, etc).
+* **Funcionalidade:** Conversão entre bases 2 até 36.
 
 ## Tecnologias Utilizadas
 
-* **Python 3.x**
-* Bibliotecas:
-  * `numpy` (para manipulação de vetores e matrizes)
-  * `matplotlib` (para plotagem de gráficos)
+* **Python 3.12+**
+* **NumPy:** Computação matricial de alta performance.
+* **SciPy:** Algoritmos de álgebra linear otimizados (LAPACK).
+* **SymPy:** Computação simbólica (derivadas e integrais exatas).
+* **Matplotlib:** Visualização de dados e gráficos de funções.
 
 ## Como Executar
 
-Para rodar qualquer um dos scripts, certifique-se de ter o Python instalado. Clone o repositório e execute o arquivo desejado via terminal:
+1.  **Clone o repositório:**
+    ```bash
+    git clone [https://github.com/Bren0-lz/Algoritmos-Numericos.git](https://github.com/Bren0-lz/Algoritmos-Numericos.git)
+    cd Algoritmos-Numericos
+    ```
 
-```bash
-# Clonar o repositório
-git clone [https://github.com/Bren0-lz/nome-do-repositorio.git](https://github.com/Bren0-lz/nome-do-repositorio.git)
+2.  **Instale as dependências:**
+    Recomenda-se o uso de um ambiente virtual (`venv`).
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-# Entrar na pasta
-cd nome-do-repositorio
+3.  **Execute um módulo:**
+    ```bash
+    python SistemasLineares.py
+    ```
 
-# Exemplo de execução (substitua pelo arquivo que deseja testar)
-python SistemasLineares.py
+## Autor
+* **Breno Luiz** - [Bren0-lz](https://github.com/Bren0-lz)
