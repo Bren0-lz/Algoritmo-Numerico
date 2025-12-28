@@ -90,7 +90,6 @@ def plotar_ajuste(x: np.ndarray, y: np.ndarray, x_ajuste: np.ndarray, y_ajuste: 
     plt.scatter(x, y, color='red', s=50, label='Dados Originais', zorder=5)
     
     # Monta a legenda com Título, Equação e Métricas
-    # Usamos \\sigma para evitar o SyntaxWarning
     texto_legenda = (f"{titulo}\n"
                      f"{equacao}\n"
                      f"($R^2$={r2:.4f} | $\\sigma^2_{{res}}$={var_res:.4f})")

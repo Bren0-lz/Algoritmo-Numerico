@@ -1,7 +1,7 @@
 import sys
 from typing import List
 
-# --- Constantes Globais ---
+# Constantes Globais
 # Definem as regras de negócio em um único lugar
 ALFABETO_NUMERICO = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 BASE_MINIMA = 2
@@ -48,7 +48,7 @@ def realizar_conversao_completa(numero_str: str, base_origem: int, base_destino:
     # Passo 2: Transformação (Base 10 -> Base M)
     return converter_decimal_para_base(valor_decimal, base_destino)
 
-# --- Camada de Interface do Usuário (I/O) ---
+# Camada de Interface do Usuário
 
 def solicitar_inteiro_validado(mensagem: str, min_val: int, max_val: int) -> int:
     """

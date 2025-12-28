@@ -1,254 +1,279 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
-
-# --- MÉTODOS ANTERIORES (sem alterações) ---
-
-
-def eliminacao_gauss_simples(matriz_aumentada):
-    # ... (código inalterado)
-    n = len(matriz_aumentada)
-    for k in range(n - 1):
-        if matriz_aumentada[k, k] == 0:
-            print("\nERRO: Pivô zero encontrado...")
-            return None
-        for i in range(k + 1, n):
-            multiplicador = matriz_aumentada[i, k] / matriz_aumentada[k, k]
-            matriz_aumentada[i, :] = matriz_aumentada[i, :] - \
-                multiplicador * matriz_aumentada[k, :]
-    print("\nMatriz após a fase de eliminação (triangular superior):")
-    print(np.round(matriz_aumentada, 4))
-    x = np.zeros(n)
-    for i in range(n - 1, -1, -1):
-        soma = np.dot(matriz_aumentada[i, i+1:n], x[i+1:n])
-        x[i] = (matriz_aumentada[i, n] - soma) / matriz_aumentada[i, i]
-    return x
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any
+from dataclasses import dataclass, field
 
 
-def gauss_com_pivoteamento(matriz_aumentada):
-    # ... (código inalterado)
-    n = len(matriz_aumentada)
-    for k in range(n - 1):
-        max_index = k
-        for i in range(k + 1, n):
-            if abs(matriz_aumentada[i, k]) > abs(matriz_aumentada[max_index, k]):
-                max_index = i
-        if max_index != k:
-            print(f"\nPivotando: Trocando linha {k+1} com linha {max_index+1}")
-            matriz_aumentada[[k, max_index]] = matriz_aumentada[[max_index, k]]
-        if matriz_aumentada[k, k] == 0:
-            print("\nERRO: A matriz é singular...")
-            return None
-        for i in range(k + 1, n):
-            multiplicador = matriz_aumentada[i, k] / matriz_aumentada[k, k]
-            matriz_aumentada[i, :] = matriz_aumentada[i, :] - \
-                multiplicador * matriz_aumentada[k, :]
-    print("\nMatriz após a fase de eliminação com pivoteamento:")
-    print(np.round(matriz_aumentada, 4))
-    x = np.zeros(n)
-    for i in range(n - 1, -1, -1):
-        soma = np.dot(matriz_aumentada[i, i+1:n], x[i+1:n])
-        x[i] = (matriz_aumentada[i, n] - soma) / matriz_aumentada[i, i]
-    return x
+# 1. CORE (Lógica)
 
+@dataclass
+class ResultadoLinear:
+    solucao: np.ndarray
+    metodo: str
+    sucesso: bool = True
+    mensagem: str = ""
+    passos: Dict[str, np.ndarray] = field(default_factory=dict)
 
-def decomposicao_lu(A, b):
-    # ... (código inalterado)
-    n = len(A)
-    L = np.eye(n)
-    U = A.copy()
-    for k in range(n - 1):
-        for i in range(k + 1, n):
-            if U[k, k] == 0:
-                print("\nERRO: Pivô zero encontrado. A decomposição LU simples falhou.")
-                return None
-            multiplicador = U[i, k] / U[k, k]
-            L[i, k] = multiplicador
-            U[i, :] = U[i, :] - multiplicador * U[k, :]
-    print("\nMatriz L (Triangular Inferior):")
-    print(np.round(L, 4))
-    print("\nMatriz U (Triangular Superior):")
-    print(np.round(U, 4))
-    y = np.zeros(n)
-    for i in range(n):
-        soma = np.dot(L[i, :i], y[:i])
-        y[i] = b[i] - soma
-    x = np.zeros(n)
-    for i in range(n - 1, -1, -1):
-        soma = np.dot(U[i, i+1:], x[i+1:])
-        x[i] = (y[i] - soma) / U[i, i]
-    return x
+class EstrategiaResolucao(ABC):
+    @property
+    @abstractmethod
+    def nome(self) -> str: pass
+    @abstractmethod
+    def resolver(self, A: np.ndarray, b: np.ndarray) -> ResultadoLinear: pass
 
-# --- NOVO MÉTODO: DECOMPOSIÇÃO LUP ---
+# Métodos de Resolução
 
-
-def decomposicao_lup(A, b):
-    """
-    Resolve um sistema Ax=b usando Decomposição LUP (com Pivotação Parcial).
-    """
-    n = len(A)
-    L = np.zeros((n, n))
-    U = A.copy().astype(float)
-    P = np.eye(n)  # Matriz de permutação começa como identidade
-
-    for k in range(n - 1):
-        # --- ETAPA DE PIVOTAÇÃO ---
-        max_index = k + np.argmax(np.abs(U[k:, k]))
-        if max_index != k:
-            print(f"\nPivotando: Trocando linha {k+1} com linha {max_index+1}")
-            # Troca as linhas em U, P e na parte já calculada de L
-            U[[k, max_index]] = U[[max_index, k]]
-            P[[k, max_index]] = P[[max_index, k]]
-            L[[k, max_index]] = L[[max_index, k]]
-
-        # --- FIM DA PIVOTAÇÃO ---
-
-        if U[k, k] == 0:
-            print("\nERRO: A matriz é singular.")
-            return None
-
-        # O resto da decomposição
-        for i in range(k + 1, n):
-            L[i, k] = U[i, k] / U[k, k]
-            U[i, :] -= L[i, k] * U[k, :]
-
-    np.fill_diagonal(L, 1)  # Preenche a diagonal de L com 1s
-
-    print("\nMatriz P (Permutação):")
-    print(np.round(P, 4))
-    print("\nMatriz L (Triangular Inferior):")
-    print(np.round(L, 4))
-    print("\nMatriz U (Triangular Superior):")
-    print(np.round(U, 4))
-
-    # --- FASE 2: RESOLUÇÃO DO SISTEMA ---
-    # Passo A: Aplicar as permutações em b (Pb)
-    b_permutado = np.dot(P, b)
-
-    # Passo B: Substituição Progressiva (Ly = b_permutado)
-    y = np.zeros(n)
-    for i in range(n):
-        soma = np.dot(L[i, :i], y[:i])
-        y[i] = b_permutado[i] - soma
-
-    # Passo C: Substituição Retroativa (Ux = y)
-    x = np.zeros(n)
-    for i in range(n - 1, -1, -1):
-        soma = np.dot(U[i, i+1:], x[i+1:])
-        x[i] = (y[i] - soma) / U[i, i]
-
-    return x
-
-# --- FUNÇÕES DE INTERFACE (com menu atualizado) ---
-
-
-def obter_dados_do_usuario():
-    # ... (código inalterado)
-    print("--------------------------------------------------")
-    print("  Resolvedor de Sistemas de Equações Lineares   ")
-    print("--------------------------------------------------")
-    while True:
+class MetodoGauss(EstrategiaResolucao):
+    @property
+    def nome(self) -> str: return "Eliminação de Gauss (Pivoteamento)"
+    
+    def resolver(self, A: np.ndarray, b: np.ndarray) -> ResultadoLinear:
+        n = len(A)
+        # Trabalhar com cópia para não alterar o original
+        M = np.hstack([A, b[:, np.newaxis]]).astype(float)
+        
         try:
-            n = int(input("Digite o número de equações do sistema: "))
-            if n > 0:
-                break
-            else:
-                print("Por favor, digite um número inteiro positivo.")
-        except ValueError:
-            print("Entrada inválida. Por favor, digite um número inteiro.")
-    A = np.zeros((n, n), dtype=float)
-    b = np.zeros(n, dtype=float)
-    print("\nAgora, digite os coeficientes de cada equação.")
-    for i in range(n):
-        print(f"\n--- Para a Equação {i+1} ---")
-        for j in range(n):
-            while True:
-                try:
-                    A[i, j] = float(input(f"Digite o coeficiente de x{j+1}: "))
-                    break
-                except ValueError:
-                    print("Entrada inválida. Digite um número.")
+            for k in range(n - 1):
+                # Pivoteamento Parcial
+                pivot = np.argmax(np.abs(M[k:, k])) + k
+                if np.isclose(M[pivot, k], 0): 
+                    raise ValueError("Pivô nulo detectado (Sistema Singular/Indeterminado).")
+                
+                if pivot != k:
+                    M[[k, pivot]] = M[[pivot, k]]
+                
+                # Eliminação
+                for i in range(k + 1, n):
+                    fator = M[i, k] / M[k, k]
+                    M[i, k:] -= fator * M[k, k:]
+            
+            # Substituição Regressiva
+            x = np.zeros(n)
+            for i in range(n - 1, -1, -1):
+                soma = np.dot(M[i, i+1:n], x[i+1:n])
+                if np.isclose(M[i, i], 0):
+                    raise ValueError("Divisão por zero na substituição.")
+                x[i] = (M[i, n] - soma) / M[i, i]
+            
+            return ResultadoLinear(x, self.nome, passos={"Matriz Escalonada": M})
+        except Exception as e:
+            return ResultadoLinear(np.array([]), self.nome, False, str(e))
+
+class MetodoLU(EstrategiaResolucao):
+    @property
+    def nome(self) -> str: return "Decomposição LU (Simples)"
+
+    def resolver(self, A: np.ndarray, b: np.ndarray) -> ResultadoLinear:
+        n = len(A)
+        L = np.eye(n)
+        U = A.copy().astype(float)
+        try:
+            for k in range(n - 1):
+                for i in range(k + 1, n):
+                    if np.isclose(U[k, k], 0):
+                        raise ValueError("Pivô zero. Tente Gauss ou LUP.")
+                    fator = U[i, k] / U[k, k]
+                    L[i, k] = fator
+                    U[i, k:] -= fator * U[k, k:]
+            
+            # Ly = b
+            y = np.zeros(n)
+            for i in range(n):
+                y[i] = b[i] - np.dot(L[i, :i], y[:i])
+            
+            # Ux = y
+            x = np.zeros(n)
+            for i in range(n - 1, -1, -1):
+                x[i] = (y[i] - np.dot(U[i, i+1:], x[i+1:])) / U[i, i]
+                
+            return ResultadoLinear(x, self.nome, passos={"Matriz L": L, "Matriz U": U})
+        except Exception as e:
+            return ResultadoLinear(np.array([]), self.nome, False, str(e))
+
+class MetodoLUP(EstrategiaResolucao):
+    @property
+    def nome(self) -> str: return "Decomposição LUP (Robust - SciPy Fallback)"
+    
+    def resolver(self, A: np.ndarray, b: np.ndarray) -> ResultadoLinear:
+        try:
+            # Tenta usar SciPy se disponível (altíssima performance)
+            from scipy.linalg import lu_factor, lu_solve
+            lu, piv = lu_factor(A)
+            x = lu_solve((lu, piv), b)
+            return ResultadoLinear(x, self.nome, passos={"Nota": np.array([["Cálculo Otimizado via SciPy"]])})
+        except ImportError:
+            # Se não tiver SciPy, usa implementação manual (simplificada aqui reutilizando Gauss)
+            return MetodoGauss().resolver(A, b)
+        except Exception as e:
+            return ResultadoLinear(np.array([]), self.nome, False, str(e))
+
+
+# 2. Interface (UI)
+
+class FormatadorVisual:
+    @staticmethod
+    def titulo(texto: str):
+        print(f"\n{'='*60}")
+        print(f"  {texto.upper()}")
+        print(f"{'='*60}")
+
+    @staticmethod
+    def subtitulo(texto: str):
+        print(f"\n--- {texto} ---")
+
+    @staticmethod
+    def exibir_matriz(matriz: np.ndarray, titulo: str = "Matriz"):
+        print(f"\n> {titulo}:")
+        try:
+            linhas = matriz.shape[0]
+            for i in range(linhas):
+                linha_str = " | ".join([f"{val:8.4f}" for val in matriz[i]])
+                print(f"  | {linha_str} |")
+        except:
+            print(f"  {matriz}")
+
+    @staticmethod
+    def exibir_sistema(A: np.ndarray, b: np.ndarray):
+        print("\n[CONFIRMAÇÃO] O sistema interpretado foi:")
+        n = len(A)
+        for i in range(n):
+            eq = ""
+            for j in range(n):
+                sinal = "+" if A[i,j] >= 0 else ""
+                eq += f"{sinal} {A[i,j]:.1f}*x{j+1} "
+            print(f"  Eq {i+1}: {eq} = {b[i]:.2f}")
+
+class AssistenteEntrada:
+    def ler_numero(self, msg: str, tipo=int):
         while True:
             try:
-                b[i] = float(
-                    input(f"Digite o termo independente da Equação {i+1}: "))
-                break
+                return tipo(input(msg))
             except ValueError:
-                print("Entrada inválida. Digite um número.")
-    return A, b
+                print(" > Valor inválido. Tente novamente.")
+
+    def ler_sistema_intuitivo(self) -> tuple:
+        FormatadorVisual.subtitulo("PASSO 1: DEFINIÇÃO")
+        n = self.ler_numero("Quantas variáveis (n)? ", int)
+        while n <= 0:
+            print(" > O número de variáveis deve ser positivo.")
+            n = self.ler_numero("Quantas variáveis (n)? ", int)
+            
+        A = np.zeros((n, n))
+        b = np.zeros(n)
+        
+        FormatadorVisual.subtitulo("PASSO 2: EQUAÇÕES")
+        print(f"Digite os coeficientes e o resultado na mesma linha.")
+        print("Ex: '2 1 10' para 2x + 1y = 10")
+        
+        for i in range(n):
+            valido = False
+            while not valido:
+                entrada = input(f"\nEquação {i+1}: ").replace(',', '.').split()
+                if len(entrada) != n + 1:
+                    print(f" > Erro: Digite exatamente {n+1} números.")
+                    continue
+                try:
+                    valores = [float(x) for x in entrada]
+                    A[i, :] = valores[:-1]
+                    b[i] = valores[-1]
+                    valido = True
+                except ValueError:
+                    print(" > Erro: Apenas números são aceitos.")
+        return A, b
+
+    def selecionar_metodo(self, metodos: List[EstrategiaResolucao]) -> EstrategiaResolucao:
+        FormatadorVisual.subtitulo("PASSO 3: ESCOLHA DO MÉTODO")
+        print("Qual algoritmo você deseja usar?")
+        for i, m in enumerate(metodos):
+            print(f"{i+1}. {m.nome}")
+        
+        while True:
+            try:
+                op = int(input("\nOpção: "))
+                if 1 <= op <= len(metodos):
+                    return metodos[op-1]
+                print(" > Opção inexistente.")
+            except ValueError:
+                print(" > Digite o número da opção.")
 
 
-def escolher_metodo():
-    print("\nEscolha o método de resolução:")
-    print("1. Eliminação de Gauss Simples")
-    print("2. Eliminação de Gauss com Pivotação Parcial")
-    print("3. Decomposição LU (Simples)")
-    print("4. Decomposição LUP (com Pivotação)")
+# 3. APLICAÇÃO (CONTROLADOR)
 
-    while True:
-        try:
-            escolha = int(input("Digite sua escolha (1, 2, 3 ou 4): "))
-            if escolha in [1, 2, 3, 4]:
-                return escolha
+class AppSolverLinear:
+    def __init__(self):
+        self.fmt = FormatadorVisual()
+        self.wizard = AssistenteEntrada()
+        # Lista de estratégias disponíveis
+        self.metodos = [
+            MetodoGauss(), 
+            MetodoLU(),
+            MetodoLUP()
+        ]
+
+    def carregar_exemplo(self):
+        print("\n[!] Carregando sistema exemplo...")
+        A = np.array([[3, 2, -4], [2, 3, 3], [5, -3, 1]], dtype=float)
+        b = np.array([3, 15, 14], dtype=float)
+        return A, b
+
+    def executar(self):
+        self.fmt.titulo("Solver de Sistemas Lineares (Clean Arch)")
+        
+        while True:
+            # MENU PRINCIPAL
+            print("\n1. Novo Sistema (Passo-a-passo)")
+            print("2. Carregar Exemplo (Demo)")
+            print("0. Sair")
+            
+            escolha = input("Opção: ").strip()
+            
+            if escolha == '0':
+                print("Encerrando...")
+                break
+            elif escolha == '2':
+                A, b = self.carregar_exemplo()
+            elif escolha == '1':
+                A, b = self.wizard.ler_sistema_intuitivo()
             else:
-                print("Escolha inválida.")
-        except ValueError:
-            print("Entrada inválida.")
+                continue
 
+            # Confirmação visual
+            self.fmt.exibir_sistema(A, b)
+            
+            # LOOP DE CÁLCULO (Permite trocar método para o mesmo sistema)
+            while True:
+                # AQUI ESTÁ A CORREÇÃO: O usuário escolhe o método explicitamente
+                metodo_escolhido = self.wizard.selecionar_metodo(self.metodos)
+                
+                print(f"\nCalculando via {metodo_escolhido.nome}...")
+                resultado = metodo_escolhido.resolver(A, b)
+                
+                if resultado.sucesso:
+                    self.fmt.subtitulo("RESULTADO FINAL")
+                    print("Vetor Solução (x):")
+                    for i, val in enumerate(resultado.solucao):
+                        print(f"  x{i+1} = {val:8.4f}")
+                    
+                    if resultado.passos:
+                        if input("\nVer matrizes intermediárias? (s/n): ").lower() == 's':
+                            for k, v in resultado.passos.items():
+                                self.fmt.exibir_matriz(v, k)
+                else:
+                    print(f"\n[ERRO MATEMÁTICO]: {resultado.mensagem}")
 
-def menu_pos_calculo():
-    # ... (código inalterado)
-    print("\nO que você deseja fazer agora?")
-    print("1. Inserir um novo sistema de equações")
-    print("2. Calcular o mesmo sistema com outro método")
-    print("3. Sair do programa")
-    while True:
-        try:
-            escolha = int(input("Digite sua escolha (1, 2 ou 3): "))
-            if escolha in [1, 2, 3]:
-                return escolha
-            else:
-                print("Escolha inválida. Por favor, digite 1, 2 ou 3.")
-        except ValueError:
-            print("Entrada inválida. Por favor, digite 1, 2 ou 3.")
+                # Menu pós-cálculo
+                print("\n--------------------------------")
+                print("1. Tentar outro método (mesmo sistema)")
+                print("2. Inserir novo sistema")
+                print("0. Sair")
+                decisao = input("Opção: ")
+                
+                if decisao == '1':
+                    continue # Volta para o Loop de Cálculo
+                elif decisao == '2':
+                    break # Sai do Loop de Cálculo, volta pro Menu Principal
+                else:
+                    return # Sai do programa
 
-
-# --- FLUXO PRINCIPAL DO PROGRAMA (atualizado) ---
-A_usuario, b_usuario = None, None
-while True:
-    if A_usuario is None:
-        A_usuario, b_usuario = obter_dados_do_usuario()
-    escolha_metodo_usuario = escolher_metodo()
-    solucao = None
-    if escolha_metodo_usuario == 1 or escolha_metodo_usuario == 2:
-        matriz_aumentada = np.hstack([A_usuario, b_usuario[:, np.newaxis]])
-        print("\nO sistema inserido foi (Matriz Aumentada [A|b]):")
-        print(matriz_aumentada)
-        if escolha_metodo_usuario == 1:
-            solucao = eliminacao_gauss_simples(matriz_aumentada.copy())
-        else:
-            solucao = gauss_com_pivoteamento(matriz_aumentada.copy())
-    elif escolha_metodo_usuario == 3:
-        solucao = decomposicao_lu(A_usuario.copy(), b_usuario.copy())
-    else:  # Escolha é 4 (Decomposição LUP)
-        solucao = decomposicao_lup(A_usuario.copy(), b_usuario.copy())
-
-    if solucao is not None:
-        print("\n------------------")
-        print("SOLUÇÃO ENCONTRADA")
-        print("------------------")
-        for i, val in enumerate(solucao):
-            print(f"x{i+1} = {val:.4f}")
-
-    escolha_final = menu_pos_calculo()
-    if escolha_final == 1:
-        A_usuario, b_usuario = None, None
-        print("\n" + "="*50)
-        continue
-    elif escolha_final == 2:
-        print("\n" + "="*50)
-        print("--- Resolvendo o mesmo sistema com outro método ---")
-        continue
-    else:
-        print("\nEncerrando o programa. Até a próxima!")
-        break
+if __name__ == "__main__":
+    AppSolverLinear().executar()

@@ -1,251 +1,306 @@
 import numpy as np
+import sympy as sp
 import math
-import sympy 
-
-# --- 1. MÉTODOS DE INTERPOLAÇÃO ---
-
-def lagrange(x_points, y_points, x):
-    n = len(x_points)
-    P = np.poly1d(0.0)
-    for i in range(n):
-        Li = np.poly1d(1.0)
-        for j in range(n):
-            if i != j:
-                p_num = np.poly1d([1, -x_points[j]])
-                p_den = x_points[i] - x_points[j]
-                Li = Li * (p_num / p_den)
-        P = P + y_points[i] * Li
-    return P, P(x)
-
-def neville(x_points, y_points, x):
-    n = len(y_points)
-    Q = np.zeros((n, n))
-    Q[:, 0] = y_points
-    for j in range(1, n):
-        for i in range(j, n):
-            num = (x - x_points[i-j]) * Q[i, j-1] - (x - x_points[i]) * Q[i-1, j-1]
-            den = x_points[i] - x_points[i-j]
-            Q[i, j] = num / den
-    return Q[n-1, n-1]
-
-def newton_divided_differences(x_points, y_points, x):
-    n = len(y_points)
-    table = np.zeros((n, n))
-    table[:, 0] = y_points
-    for j in range(1, n):
-        for i in range(j, n):
-            table[i, j] = (table[i, j-1] - table[i-1, j-1]) / (x_points[i] - x_points[i-j])
-    coeffs = table.diagonal()
-    poly_str = f"{coeffs[0]:.5f}"
-    term_str = ""
-    result = coeffs[0]
-    term_val = 1.0
-    for k in range(1, n):
-        term_val *= (x - x_points[k-1])
-        result += coeffs[k] * term_val
-        term_str += f"(x - {x_points[k-1]})"
-        poly_str += f" + ({coeffs[k]:.5f} * {term_str})"
-    return poly_str, result
-
-def gregory_newton_forward(x_points, y_points, x):
-    n = len(y_points)
-    h = x_points[1] - x_points[0]
-    if not np.allclose(np.diff(x_points), h):
-        print("\n" + "="*50)
-        print("ERRO: Os pontos de X não são igualmente espaçados.")
-        print("O método de Gregory-Newton não pode ser aplicado.")
-        print("="*50)
-        return None, None, None
-    table = np.zeros((n, n))
-    table[:, 0] = y_points
-    for j in range(1, n):
-        for i in range(0, n - j):
-            table[i, j] = table[i+1, j-1] - table[i, j-1]
-    coeffs = table[0, :]
-    s = (x - x_points[0]) / h
-    result = coeffs[0]
-    poly_str = f"{coeffs[0]:.5f}"
-    s_term_val = 1.0
-    s_term_str = ""
-    fact = 1.0
-    for k in range(1, n):
-        s_term_val *= (s - (k - 1))
-        fact *= k
-        result += (coeffs[k] * s_term_val) / fact
-        if k == 1:
-            s_term_str = "s"
-        else:
-            s_term_str += f"(s - {k-1})"
-        poly_str += f" + (({coeffs[k]:.5f} * {s_term_str}) / {k}!)"
-    poly_str = f"P(s) = {poly_str}\nOnde s = (x - {x_points[0]}) / {h:.4f} = {s:.4f}"
-    return coeffs, poly_str, result
+import sys
+from abc import ABC, abstractmethod
+from typing import List, Tuple, Optional, Any
+from dataclasses import dataclass
 
 
-# --- 2. FUNÇÕES AUXILIARES DE ENTRADA ---
+# 1. OBJETOS DE VALOR E CONTRATOS
 
-def print_menu():
-    print("\n" + "="*40)
-    print("  Calculadora de Interpolação Numérica")
-    print("="*40)
-    print("1. Método de Lagrange")
-    print("2. Método Prático")
-    print("3. Método de Newton")
-    print("4. Método de Gregory-Newton")
-    print("0. Sair")
-    print("="*40)
+@dataclass
+class ResultadoInterpolacao:
+    valor: float
+    metodo: str
+    polinomio_str: str = ""
+    detalhes: str = ""
 
-def get_points():
-    while True:
-        try:
-            x_input = input("Digite os valores de X (separados por espaço): ")
-            x_points = np.array([float(val) for val in x_input.split()])
-            y_input = input("Digite os valores de Y (separados por espaço): ")
-            y_points = np.array([float(val) for val in y_input.split()])
-            if len(x_points) != len(y_points):
-                print("Erro: O número de pontos X e Y deve ser o mesmo.")
-                continue
-            if len(x_points) < 2:
-                print("Erro: Você precisa de pelo menos 2 pontos para interpolar.")
-                continue
-            return x_points, y_points
-        except ValueError:
-            print("Erro: Entrada inválida. Digite apenas números separados por espaço.")
+class MetodoInterpolacao(ABC):
+    @property
+    @abstractmethod
+    def nome(self) -> str:
+        pass
 
-def get_point_to_interpolate():
-    while True:
-        try:
-            x = float(input("Digite o valor de X para interpolar (ex: 2.5): "))
-            return x
-        except ValueError:
-            print("Erro: Entrada inválida. Digite um número.")
+    @abstractmethod
+    def calcular(self, x_dados: np.ndarray, y_dados: np.ndarray, x_alvo: float) -> ResultadoInterpolacao:
+        pass
 
-# --- 3. FUNÇÕES DE CÁLCULO DE ERRO TEÓRICO ---
 
-def calcular_produtorio_erro(vetor_x, x_interpolar):
-    """Calcula omega(x) = (x - x0)(x - x1)...(x - xn)"""
-    omega_x = 1.0
-    for xi in vetor_x:
-        omega_x *= (x_interpolar - xi)
-    return omega_x
+# 2. IMPLEMENTAÇÃO DOS MÉTODOS
 
-def estimar_erro_truncamento_maximo(vetor_x, x_interpolar, max_derivada_n_mais_1):
-    """Calcula o limite do erro usando a fórmula teórica."""
-    num_pontos = len(vetor_x)
-    n = num_pontos - 1
-    
-    omega_x = calcular_produtorio_erro(vetor_x, x_interpolar)
-    
-    try:
-        fatorial_n_mais_1 = math.factorial(n + 1)
-        erro_max_estimado = (abs(max_derivada_n_mais_1) / fatorial_n_mais_1) * abs(omega_x)
-        return erro_max_estimado, omega_x, fatorial_n_mais_1
-    except Exception as e:
-        print(f"Erro ao calcular erro máximo: {e}")
-        return None, None, None
+class MetodoLagrange(MetodoInterpolacao):
+    @property
+    def nome(self) -> str:
+        return "Lagrange"
 
-def processar_erro_teorico(vetor_x, x_interpolar):
-    """
-    Função principal para o Erro Teórico. Pede a função, usa SymPy
-    para derivar e encontrar o máximo M, e depois calcula o erro.
-    """
-    print("\n" + "="*40)
-    print("  Cálculo do Limite do Erro Teórico (Truncamento)")
-    print("="*40)
-    ask = input("Deseja calcular o ERRO TEÓRICO MÁXIMO (via SymPy)? (s/n): ")
-    if ask.lower() != 's': return
-
-    print(f"\n--- Iniciando Cálculo do Erro Teórico ---")
-    func_str = input("Informe a função f(x) (ex: 'sin(x)', 'exp(3*x)', 'log(x)'): ")
-    n = len(vetor_x) - 1
-    
-    try:
-        x = sympy.symbols('x')
-        # Converte a string em uma expressão SymPy
-        f = sympy.sympify(func_str) 
+    def calcular(self, x_dados: np.ndarray, y_dados: np.ndarray, x_alvo: float) -> ResultadoInterpolacao:
+        n = len(x_dados)
+        valor_interpolado = 0.0
         
-        print(f"Grau do polinômio (n): {n}")
-        
-        # 1. Calcula a (n+1)-ésima derivada simbolicamente
-        f_deriv = sympy.diff(f, x, n + 1)
-
-        # 2. Encontra o máximo (M) dessa derivada no intervalo
-        min_x, max_x = min(vetor_x), max(vetor_x)
-        
-        # Cria uma função numérica (rápida) a partir da simbólica
-        f_deriv_lambdified = sympy.lambdify(x, sympy.Abs(f_deriv), 'numpy')
-        
-        # Testa 1000 pontos no intervalo
-        x_intervalo = np.linspace(min_x, max_x, 1000)
-        max_derivada_val = np.max(f_deriv_lambdified(x_intervalo))
-        
-        print(f"Intervalo de X considerado: [{min_x}, {max_x}]")
-
-        # 3. Calcula o erro máximo usando a sua função
-        erro_max, omega, fact = estimar_erro_truncamento_maximo(vetor_x, x_interpolar, max_derivada_val)
-        
-        if erro_max is not None:
-            print("\n" + "-"*30)
-            print(f"|E({x_interpolar})| <= {erro_max:.6e}")
-            print(f"Este é o LIMITE MÁXIMO do erro no ponto {x_interpolar}.")
-            print("-" * 30)
-
-
-    except sympy.SympifyError:
-        print(f"ERRO: Não foi possível entender a função '{func_str}'.")
-        print("Tente usar a notação do SymPy (ex: 'sin(x)', 'cos(x)', 'exp(x)', 'log(x)')")
-    except Exception as e:
-        print(f"Ocorreu um erro no SymPy: {e}")
-
-
-# --- 4. FUNÇÃO PRINCIPAL ---
-
-def main():
-    while True:
-        print_menu()
-        choice = input("Escolha uma opção: ")
-
-        if choice == '0':
-            print("Saindo...")
-            break
-        
-        if choice in ['1', '2', '3', '4']:
-            # 1. Obter dados
-            x_p, y_p = get_points()
-            x_val = get_point_to_interpolate()
+        for i in range(n):
+            termo_L = 1.0
+            for j in range(n):
+                if i != j:
+                    termo_L *= (x_alvo - x_dados[j]) / (x_dados[i] - x_dados[j])
+            valor_interpolado += y_dados[i] * termo_L
             
-            print("\n--- Resultado da Interpolação ---")
-            
-            result_n = None
-            
-            # 2. Calcular a interpolação P(x)
-            if choice == '1':
-                poly, result_n = lagrange(x_p, y_p, x_val)
-                print(f"Polinômio de Lagrange P(x):\n{poly}")
-            
-            elif choice == '2':
-                print("Nota: Usando o Método Prático")
-                result_n = neville(x_p, y_p, x_val)
+        return ResultadoInterpolacao(
+            valor=valor_interpolado, 
+            metodo=self.nome,
+            polinomio_str="P(x) = Σ (yi * Li(x)) [Forma de Lagrange]"
+        )
 
-            elif choice == '3':
-                poly_str, result_n = newton_divided_differences(x_p, y_p, x_val)
-                print(f"Polinômio de Newton:\nP(x) = {poly_str}")
+class MetodoNeville(MetodoInterpolacao):
+    @property
+    def nome(self) -> str:
+        return "Neville (Método Prático)"
 
-            elif choice == '4':
-                coeffs, poly_str, result_n = gregory_newton_forward(x_p, y_p, x_val)
-                if result_n is not None:
-                    print(f"Polinômio de Gregory-Newton:\n{poly_str}")
+    def calcular(self, x_dados: np.ndarray, y_dados: np.ndarray, x_alvo: float) -> ResultadoInterpolacao:
+        n = len(y_dados)
+        matriz_Q = np.zeros((n, n))
+        matriz_Q[:, 0] = y_dados
 
-            # 3. Imprimir resultado e ir para o cálculo de erro
-            if result_n is not None:
-                print("\n" + "-"*40)
-                print(f"Valor interpolado: P({x_val}) = {result_n:.7f}")
-                print("-" * 40)
+        for j in range(1, n):
+            for i in range(j, n):
+                denominador = x_dados[i] - x_dados[i-j]
+                if denominador == 0:
+                    raise ValueError("Divisão por zero detectada (pontos X duplicados?).")
                 
-                # 4. Chamar APENAS o cálculo de erro teórico
-                processar_erro_teorico(x_p, x_val)
+                numerador = (x_alvo - x_dados[i-j]) * matriz_Q[i, j-1] - (x_alvo - x_dados[i]) * matriz_Q[i-1, j-1]
+                matriz_Q[i, j] = numerador / denominador
+
+        return ResultadoInterpolacao(valor=matriz_Q[n-1, n-1], metodo=self.nome)
+
+class MetodoNewtonDiferencas(MetodoInterpolacao):
+    @property
+    def nome(self) -> str:
+        return "Newton (Diferenças Divididas)"
+
+    def calcular(self, x_dados: np.ndarray, y_dados: np.ndarray, x_alvo: float) -> ResultadoInterpolacao:
+        n = len(y_dados)
+        tabela = np.zeros((n, n))
+        tabela[:, 0] = y_dados
+
+        for j in range(1, n):
+            for i in range(j, n):
+                denom = x_dados[i] - x_dados[i-j]
+                if denom == 0: raise ValueError("Pontos X duplicados.")
+                tabela[i, j] = (tabela[i, j-1] - tabela[i-1, j-1]) / denom
+
+        coefs = tabela.diagonal()
+        valor_final = coefs[0]
+        termo_acumulado = 1.0
+        str_poly = f"{coefs[0]:.4f}"
+        
+        for k in range(1, n):
+            termo_acumulado *= (x_alvo - x_dados[k-1])
+            valor_final += coefs[k] * termo_acumulado
             
-        else:
-            print("Opção inválida. Tente novamente.")
+            sinal = "+" if coefs[k] >= 0 else ""
+            termos_x = "".join([f"(x - {x_dados[m]:.2f})" for m in range(k)])
+            str_poly += f" {sinal} {coefs[k]:.4f}*{termos_x}"
+
+        return ResultadoInterpolacao(valor=valor_final, metodo=self.nome, polinomio_str=str_poly)
+
+class MetodoGregoryNewton(MetodoInterpolacao):
+    @property
+    def nome(self) -> str:
+        return "Gregory-Newton (Diferenças Finitas)"
+
+    def calcular(self, x_dados: np.ndarray, y_dados: np.ndarray, x_alvo: float) -> ResultadoInterpolacao:
+        h = x_dados[1] - x_dados[0]
+        if not np.allclose(np.diff(x_dados), h, atol=1e-9):
+            raise ValueError("Requer pontos X equiespaçados.")
+
+        n = len(y_dados)
+        tabela = np.zeros((n, n))
+        tabela[:, 0] = y_dados
+
+        for j in range(1, n):
+            for i in range(0, n - j):
+                tabela[i, j] = tabela[i+1, j-1] - tabela[i, j-1]
+
+        coefs = tabela[0, :]
+        s_val = (x_alvo - x_dados[0]) / h
+        
+        valor_final = coefs[0]
+        fatorial = 1.0
+        termo_s = 1.0
+        
+        for k in range(1, n):
+            termo_s *= (s_val - (k - 1))
+            fatorial *= k
+            valor_final += (coefs[k] * termo_s) / fatorial
+
+        return ResultadoInterpolacao(
+            valor=valor_final,
+            metodo=self.nome,
+            polinomio_str=f"P(s) com s={s_val:.4f}",
+            detalhes=f"Passo h={h:.4f}"
+        )
+
+
+# 3. ANÁLISE DE ERRO
+
+class AnalisadorErro:
+    @staticmethod
+    def estimar_erro(funcao_str: str, x_dados: np.ndarray, x_alvo: float) -> Tuple[Optional[float], str]:
+        try:
+            x_sym = sp.symbols('x')
+            expr = sp.sympify(funcao_str.replace('^', '**'))
+            n = len(x_dados) - 1
+            
+            # Derivada n+1
+            derivada = sp.diff(expr, x_sym, n + 1)
+            f_deriv = sp.lambdify(x_sym, sp.Abs(derivada), 'numpy')
+            
+            # Busca de máximo
+            grid = np.linspace(np.min(x_dados), np.max(x_dados), 1000)
+            vals = f_deriv(grid)
+            max_val = np.max(vals) if np.ndim(vals) > 0 else float(vals)
+            
+            # Produtório
+            prod = np.prod([abs(x_alvo - xi) for xi in x_dados])
+            
+            erro = (max_val / math.factorial(n + 1)) * prod
+            return erro, str(derivada)
+        except Exception as e:
+            return None, str(e)
+
+
+# 4. INTERFACE DE USUÁRIO (UI)
+
+class InterfaceUsuario:
+    def cabecalho(self, texto: str):
+        print(f"\n{'='*60}\n{texto:^60}\n{'='*60}")
+
+    def ler_pontos(self) -> Tuple[np.ndarray, np.ndarray]:
+        print("\n--- Entrada de Dados ---")
+        while True:
+            try:
+                sx = input("Valores de X: ").replace(',', ' ').split()
+                sy = input("Valores de Y: ").replace(',', ' ').split()
+                if not sx or not sy: continue
+                
+                x = np.array([float(v) for v in sx])
+                y = np.array([float(v) for v in sy])
+                
+                if len(x) != len(y):
+                    print(" > Erro: Vetores de tamanhos diferentes.")
+                    continue
+                if len(x) < 2:
+                    print(" > Erro: Mínimo 2 pontos.")
+                    continue
+                return x, y
+            except ValueError:
+                print(" > Erro: Digite apenas números.")
+
+    def ler_float(self, msg: str) -> float:
+        while True:
+            try:
+                return float(input(msg))
+            except ValueError:
+                print(" > Inválido.")
+
+    def menu_metodos(self, metodos: List[MetodoInterpolacao]) -> MetodoInterpolacao:
+        print("\n--- Escolha o Método ---")
+        for i, m in enumerate(metodos):
+            print(f"{i+1}. {m.nome}")
+        
+        while True:
+            try:
+                op = int(input("Opção: "))
+                if 1 <= op <= len(metodos):
+                    return metodos[op-1]
+                print(" > Opção inexistente.")
+            except ValueError:
+                print(" > Digite um número inteiro.")
+
+    def menu_pos_calculo(self) -> str:
+        print("\n" + "-"*60)
+        print("O QUE DESEJA FAZER AGORA?")
+        print("1. Escolher OUTRO MÉTODO (para o mesmo ponto)")
+        print("2. Escolher OUTRO PONTO (para os mesmos dados)")
+        print("3. Digitar NOVOS DADOS")
+        print("0. Sair do programa")
+        print("-" * 60)
+        return input("Sua escolha: ").strip()
+
+
+# 5. MAIN (com Loop Aninhado)
+
+class AppInterpolacao:
+    def __init__(self):
+        self.ui = InterfaceUsuario()
+        self.analisador = AnalisadorErro()
+        self.estrategias = [
+            MetodoLagrange(),
+            MetodoNeville(),
+            MetodoNewtonDiferencas(),
+            MetodoGregoryNewton()
+        ]
+
+    def executar(self):
+        self.ui.cabecalho("SISTEMA DE INTERPOLAÇÃO PRO")
+
+        # LOOP 1: Ciclo de vida dos DADOS
+        while True:
+            try:
+                x_dados, y_dados = self.ui.ler_pontos()
+            except KeyboardInterrupt:
+                break
+
+            # LOOP 2: Ciclo de vida do PONTO ALVO
+            while True:
+                x_alvo = self.ui.ler_float(f"\nDigite o ponto para interpolar (Intervalo [{min(x_dados)}, {max(x_dados)}]): ")
+
+                # LOOP 3: Ciclo de vida do CÁLCULO/MÉTODO
+                while True:
+                    metodo = self.ui.menu_metodos(self.estrategias)
+                    
+                    # Execução
+                    try:
+                        self.ui.cabecalho(f"Calculando com {metodo.nome}...")
+                        res = metodo.calcular(x_dados, y_dados, x_alvo)
+                        
+                        print(f"\nRESULTADO: P({x_alvo}) = {res.valor:.8f}")
+                        if res.polinomio_str: print(f"Polinômio: {res.polinomio_str}")
+                        if res.detalhes: print(f"Nota: {res.detalhes}")
+
+                    except ValueError as e:
+                        print(f"\n[ERRO MATEMÁTICO]: {e}")
+                    
+                    # Análise de Erro (Opcional)
+                    if input("\nCalcular erro teórico estimado? (s/n): ").lower() == 's':
+                        fs = input("Função f(x) original (ex: sin(x)): ")
+                        erro, msg = self.analisador.estimar_erro(fs, x_dados, x_alvo)
+                        if erro is not None:
+                            print(f" > Limite do Erro: {erro:.6e}")
+                        else:
+                            print(f" > Erro na análise: {msg}")
+
+                    # --- MENU DE NAVEGAÇÃO ---
+                    decisao = self.ui.menu_pos_calculo()
+
+                    if decisao == '1':
+                        continue # Volta para escolher MÉTODO (Loop 3)
+                    elif decisao == '2':
+                        break # Quebra Loop 3 -> Volta para escolher PONTO (Loop 2)
+                    elif decisao == '3':
+                        # Precisamos sair do Loop 2 também. Usamos um "break flag" ou return
+                        # Maneira pythonica simples:
+                        break 
+                    elif decisao == '0':
+                        print("Saindo...")
+                        sys.exit(0)
+                    else:
+                        print("Opção inválida. Voltando ao menu de métodos.")
+                
+                # Se a decisão foi '3' (Novos Dados), o break acima saiu do Loop 3.
+                # Agora precisamos verificar se devemos sair do Loop 2 para o 1.
+                if decisao == '3':
+                    break # Quebra Loop 2 -> Volta para ler DADOS (Loop 1)
 
 if __name__ == "__main__":
-    main()
+    AppInterpolacao().executar()

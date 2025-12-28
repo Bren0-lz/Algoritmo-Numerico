@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 # 1. NÚCLEO MATEMÁTICO (Estratégia e Solver)
 
 class MetodoNumerico(ABC):
-    """Interface para estratégias de resolução numérica (Padrão Strategy)."""
+    """Interface para estratégias de resolução numérica."""
     @abstractmethod
     def calcular_passo(self, func: Callable, t: float, y: np.ndarray, h: float) -> np.ndarray:
         pass
@@ -39,7 +39,6 @@ class SolucionadorEDO:
 
     def resolver(self, func_sistema: Callable, intervalo: Tuple[float, float], y0: List[float], h: float) -> Tuple[np.ndarray, np.ndarray]:
         t0, t_fim = intervalo
-        # np.arange pode ser impreciso com floats, usamos linspace ou lógica manual protegida
         num_passos = int(np.ceil((t_fim - t0) / h))
         tempos = np.linspace(t0, t0 + num_passos * h, num_passos + 1)
         
@@ -57,13 +56,9 @@ class SolucionadorEDO:
         return tempos, resultados
 
 
-# 2. SEGURANÇA E PARSING (SymPy)
+# 2. SEGURANÇA E PARSING
 
 class InterpretadorMatematico:
-    """
-    Substitui o perigoso 'eval' por parsing simbólico seguro.
-    Permite expressões como 'sin(t)', 'pi', 'exp(y)'.
-    """
     @staticmethod
     def converter_expressao_para_funcao(str_eqs: List[str], var_t: str, vars_y: List[str]) -> Callable:
         t_sym = sp.symbols(var_t)
@@ -74,7 +69,7 @@ class InterpretadorMatematico:
         except sp.SympifyError as e:
             raise ValueError(f"Erro de sintaxe matemática: {e}")
 
-        # Cria uma função Python otimizada (numpy-aware)
+        # Cria uma função Python otimizada
         funcs_lambda = [sp.lambdify((t_sym, *y_syms), expr, modules=['numpy', 'math']) for expr in exprs_sym]
 
         def wrapper(t_val, y_vec):
@@ -276,9 +271,8 @@ class InterfaceConsole:
             except Exception as e:
                 print(f"Erro ao calcular analítica para {nome}: {e}")
 
-# ==========================================
+
 # 4. ENTRY POINT
-# ==========================================
 
 if __name__ == "__main__":
     app = InterfaceConsole()

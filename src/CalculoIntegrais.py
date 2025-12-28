@@ -4,14 +4,12 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, Callable, Dict, Any
 import sys
 
-# ==========================================
+
 # 1. CAMADA DE DOMÍNIO (Estratégias Matemáticas)
-# ==========================================
 
 class EstrategiaIntegracao(ABC):
     """
     Interface base para algoritmos de integração numérica.
-    Padrão de Projeto: Strategy.
     """
     @property
     @abstractmethod
@@ -64,9 +62,8 @@ class MetodoSimpson38(EstrategiaIntegracao):
             
         return (3 * passo_h / 8) * soma
 
-# ==========================================
+
 # 2. CAMADA DE SERVIÇO (Lógica Auxiliar)
-# ==========================================
 
 class ServicoMatematico:
     @staticmethod
@@ -98,9 +95,8 @@ class ServicoMatematico:
             return None
         return abs((valor_exato - valor_numerico) / valor_exato) * 100
 
-# ==========================================
-# 3. CAMADA DE APRESENTAÇÃO (UI Refinada)
-# ==========================================
+
+# 3. CAMADA DE APRESENTAÇÃO
 
 class InterfaceUsuario:
     """Gerencia I/O com foco em formatação precisa."""
@@ -170,9 +166,8 @@ class InterfaceUsuario:
 
         print(divisor)
 
-# ==========================================
+
 # 4. ORQUESTRADOR (Main com Loop)
-# ==========================================
 
 class AplicacaoCalculadora:
     def __init__(self):
