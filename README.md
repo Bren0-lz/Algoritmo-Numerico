@@ -75,4 +75,7 @@ Utilitário para conversão entre bases numéricas arbitrárias (Binário, Octal
     ```
 
 ## Autor
-* **Breno Luiz** - [Bren0-lz](https://github.com/Bren0-lz)
+
+**Breno Luiz**
+* [LinkedIn](https://linkedin.com/in/SEU_LINKEDIN)
+* [GitHub](https://github.com/Bren0-lz)
