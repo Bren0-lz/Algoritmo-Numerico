@@ -69,7 +69,7 @@ Utilitário para conversão entre bases numéricas arbitrárias (Binário, Octal
     pip install -r requirements.txt
     ```
 
-3.  **Execute um módulo:**
+3.  **Execute um módulo que desejar (exemplo):**
     ```bash
     python SistemasLineares.py
     ```
